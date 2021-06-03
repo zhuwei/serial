@@ -37,7 +37,7 @@ type structTimeouts struct {
 	WriteTotalTimeoutConstant   uint32
 }
 
-func openPort(name string, baud int, databits byte, parity Parity, stopbits StopBits, readTimeout time.Duration) (p *Port, err error) {
+func openPort(name string, baud int, databits byte, parity Parity, stopbits StopBits, readTimeout time.Duration, isUsb bool) (p *Port, err error) {
 	if len(name) > 0 && name[0] != '\\' {
 		name = "\\\\.\\" + name
 	}
@@ -59,16 +59,16 @@ func openPort(name string, baud int, databits byte, parity Parity, stopbits Stop
 		}
 	}()
 
-	if err = setCommState(h, baud, databits, parity, stopbits); err != nil {
+	if err = setCommState(h, baud, databits, parity, stopbits, isUsb); err != nil {
 		return nil, err
 	}
-	if err = setupComm(h, 64, 64); err != nil {
+	if err = setupComm(h, 64, 64, isUsb); err != nil {
 		return nil, err
 	}
-	if err = setCommTimeouts(h, readTimeout); err != nil {
+	if err = setCommTimeouts(h, readTimeout, isUsb); err != nil {
 		return nil, err
 	}
-	if err = setCommMask(h); err != nil {
+	if err = setCommMask(h, isUsb); err != nil {
 		return nil, err
 	}
 
@@ -171,7 +171,7 @@ func getProcAddr(lib syscall.Handle, name string) uintptr {
 	return addr
 }
 
-func setCommState(h syscall.Handle, baud int, databits byte, parity Parity, stopbits StopBits) error {
+func setCommState(h syscall.Handle, baud int, databits byte, parity Parity, stopbits StopBits, isUsb bool) error {
 	var params structDCB
 	params.DCBlength = uint32(unsafe.Sizeof(params))
 
@@ -209,13 +209,13 @@ func setCommState(h syscall.Handle, baud int, databits byte, parity Parity, stop
 	}
 
 	r, _, err := syscall.Syscall(nSetCommState, 2, uintptr(h), uintptr(unsafe.Pointer(&params)), 0)
-	if r == 0 {
+	if r == 0 && !isUsb {
 		return err
 	}
 	return nil
 }
 
-func setCommTimeouts(h syscall.Handle, readTimeout time.Duration) error {
+func setCommTimeouts(h syscall.Handle, readTimeout time.Duration, isUsb bool) error {
 	var timeouts structTimeouts
 	const MAXDWORD = 1<<32 - 1
 
@@ -259,24 +259,24 @@ func setCommTimeouts(h syscall.Handle, readTimeout time.Duration) error {
 	timeouts.ReadTotalTimeoutConstant = uint32(timeoutMs)
 
 	r, _, err := syscall.Syscall(nSetCommTimeouts, 2, uintptr(h), uintptr(unsafe.Pointer(&timeouts)), 0)
-	if r == 0 {
+	if r == 0 && !isUsb {
 		return err
 	}
 	return nil
 }
 
-func setupComm(h syscall.Handle, in, out int) error {
+func setupComm(h syscall.Handle, in, out int, isUsb bool) error {
 	r, _, err := syscall.Syscall(nSetupComm, 3, uintptr(h), uintptr(in), uintptr(out))
-	if r == 0 {
+	if r == 0 && !isUsb {
 		return err
 	}
 	return nil
 }
 
-func setCommMask(h syscall.Handle) error {
+func setCommMask(h syscall.Handle, isUsb bool) error {
 	const EV_RXCHAR = 0x0001
 	r, _, err := syscall.Syscall(nSetCommMask, 2, uintptr(h), EV_RXCHAR, 0)
-	if r == 0 {
+	if r == 0 && !isUsb {
 		return err
 	}
 	return nil

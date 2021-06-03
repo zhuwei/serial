@@ -113,6 +113,7 @@ type Config struct {
 	// XONFlowControl bool
 
 	// CRLFTranslate bool
+	IsUsb bool
 }
 
 // ErrBadSize is returned if Size is not supported.
@@ -136,7 +137,7 @@ func OpenPort(c *Config) (*Port, error) {
 	if stop == 0 {
 		stop = Stop1
 	}
-	return openPort(c.Name, c.Baud, size, par, stop, c.ReadTimeout)
+	return openPort(c.Name, c.Baud, size, par, stop, c.ReadTimeout, c.IsUsb)
 }
 
 // Converts the timeout values for Linux / POSIX systems
